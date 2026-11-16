@@ -1,6 +1,12 @@
 # Implementation status — SOL Ai
 
-Updated 2026-11-16. This repository implements a reviewed personal-application workflow. **It does not yet satisfy the full production/autonomy brief.** Never describe all original acceptance scenarios as complete.
+Updated 2026-11-16 for version 0.2. This repository implements a reviewed personal-application workflow. **It does not yet satisfy the full production/autonomy brief.** Never describe all original acceptance scenarios as complete.
+
+## Version 0.2 upgrade
+
+Implemented local BM25-style RAG with approved-document chunking, privacy-safe skill/evidence projection, stable source locators, output citation validation and an inspectable review panel. A bounded LLM planner can select retrieval from one of up to three approved resume candidates or stop for human review. Explicit resume selection skips planning; invalid citations receive at most one budgeted correction. No send tool is exposed to this workflow.
+
+This is real lexical retrieval-augmented generation and constrained AI planning, not vector RAG or a complete autonomous platform. Private passages stay local. Citations are checked for membership, not semantic entailment. Failed pre-draft runs do not yet have durable checkpoint records. New migration: `20261116010000_rag_evidence`. Read [RAG_AND_AGENTS.md](RAG_AND_AGENTS.md) and [PORTFOLIO.md](PORTFOLIO.md).
 
 ## Phase results
 
@@ -9,7 +15,7 @@ Updated 2026-11-16. This repository implements a reviewed personal-application w
 | 0 Audit / architecture | Empty workspace inspected, architecture/roadmap, package compatibility, real PostgreSQL schema and migration | Independent architectural/security review |
 | 1 Foundation | Next.js 16, React 19, strict TS, Clerk, optional single-owner restriction, tenant-owned data, responsive light/dark workspace, editable profile/settings | Browser/mobile/accessibility audit; granular profile education/project/answer-vault models |
 | 2 Resume / AI | Private PDF/DOCX/TXT upload, server parsing, immutable hashes/bytes, text review/approval/download/deletion; real Gemini/Groq APIs, encryption, model discovery, configured free eligibility, atomic budgets, structured responses | OCR, claim extraction workflow, resume variants/tailoring, PDF/DOCX export, cache, capability probing, task routing, bounded retries/fallback, health history |
-| 3 Single Quick Apply | Recruiter email, role, company, private notes and job link; approved-resume selection; fixed-taxonomy expression-of-interest generation; editable review; explicit claim approval; Gmail OAuth and real MIME/send code; durable outbox and truthful acceptance/uncertainty states | Live provider/OAuth/send verification; job-specific writing/intelligence; uncertainty reconciliation; attachment snapshots beyond original immutable resume |
+| 3 Single Quick Apply | Recruiter email, role, company, private notes and job link; approved-resume selection with bounded AI planning; local lexical RAG and privacy-safe expression-of-interest generation; editable review; explicit claim approval; Gmail OAuth and real MIME/send code; durable outbox and truthful acceptance/uncertainty states | Live provider/OAuth/send verification; job-specific writing/intelligence; uncertainty reconciliation; attachment snapshots beyond original immutable resume |
 | 4 Imports / controlled sending | CSV/XLSX/email-list preview, aliases, validation, dedupe, permitted-use confirmation, transactional inserts, source tracking, company/recipient cooldown, pause, daily caps, persisted reviewed outbox | Custom column mapper, row selection/editing, bulk draft generation, recruiter ranking, configurable hourly/quiet-hour/company policies, policy-authorized unreviewed Autopilot |
 | 5 Replies / follow-ups | Explicit read scope, manual recent-application-thread polling, local advisory reply categories, transport/outcome separation, opt-out/bounce suppression | History cursors, robust MIME/reply parsing, interview details, durable independent suppression tombstones, thread-aware follow-ups and cancellation workflows |
 | 6 Discovery / LinkedIn | Real public Greenhouse/Lever board import, dedupe, saved job link/description, explained confirmed-skill overlap; pasted private description and original link retained in Quick Apply | Scheduled saved sources, alert ingestion, configurable weighted ranking/eligibility, LinkedIn answer/cover-letter preparation, manual-portal confirmation, company research |
@@ -33,7 +39,7 @@ Updated 2026-11-16. This repository implements a reviewed personal-application w
 ## Verification actually performed
 
 - PostgreSQL 17 migration applied successfully to a disposable Docker database.
-- 37 automated tests passed: 19 unit/domain/security tests, 9 database/concurrency tests, 9 authenticated API tests.
+- 58 automated tests passed: 19 domain/security tests, 11 retrieval tests, 7 bounded-workflow tests, 12 database/concurrency/planner-gate tests and 9 authenticated API tests.
 - API vertical slice tested profile → TXT resume → approval → provider model configuration → generation → content approval → mocked Gmail acceptance with attachment. External calls are mocked; no email was sent during tests.
 - Tests cover tenant read isolation, composite ownership constraints, unauthenticated access, owner allowlist, cross-origin rejection, encrypted-key response exclusion, atomic invalid import rejection, approval/send replay protection, duplicate sender concurrency, expired tokens, uncertain sends, suppression, pause, company cooldown and concurrent AI request-budget reservation.
 - Type checking, ESLint and Next.js production build passed during implementation. Final results are recorded in the Git commit and CI configuration.

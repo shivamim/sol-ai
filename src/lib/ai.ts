@@ -1,6 +1,11 @@
 import { db } from "./db";
 import { decrypt } from "./security";
 import { z } from "zod";
+import {
+  providerEvidence,
+  validateEvidenceIds,
+  type RetrievalResult,
+} from "./rag";
 export type ProviderKind = "gemini" | "groq";
 export async function providerFetch(
   kind: ProviderKind,
@@ -23,7 +28,7 @@ export async function providerFetch(
       ...headers,
       ...init.headers,
     },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(15000),
     cache: "no-store",
   });
   if (!result.ok)
@@ -49,62 +54,16 @@ export async function listModels(
 const draftSchema = z.object({
   subject: z.string().min(1).max(180),
   body: z.string().min(80).max(5000),
+  evidenceIds: z.array(z.string()).max(5).optional(),
 });
 // Only a fixed, non-personal taxonomy crosses the provider boundary. Private input is never interpolated.
-const taxonomy = [
-  "Python",
-  "SQL",
-  "JavaScript",
-  "Pandas",
-  "NumPy",
-  "Excel",
-  "Google Sheets",
-  "Power BI",
-  "Power Query",
-  "ETL",
-  "PySpark",
-  "Machine Learning",
-  "Deep Learning",
-  "Generative AI",
-  "Agentic AI",
-  "RAG",
-  "LangChain",
-  "LlamaIndex",
-  "APIs",
-  "Automation",
-  "PostgreSQL",
-  "MongoDB",
-  "Data visualization",
-];
-const roles = [
-  "AI Engineer",
-  "Data Scientist",
-  "Data Analyst",
-  "Business Intelligence Analyst",
-  "Data Engineer",
-  "Machine Learning Engineer",
-  "Analytics Engineer",
-  "Product Analyst",
-  "Business Data Analyst",
-  "Operations Analyst",
-  "Data Visualization Developer",
-  "Data Analytics Specialist",
-];
-export function publicContext(skills: string[], role: string) {
-  return {
-    skills: taxonomy.filter((t) =>
-      skills.some((s) => s.toLowerCase() === t.toLowerCase()),
-    ),
-    role:
-      roles.find((r) => r.toLowerCase() === role.toLowerCase()) ||
-      "a suitable professional role",
-  };
-}
-export async function generateDraft(
+export { publicContext } from "./taxonomy";
+import { publicContext } from "./taxonomy";
+async function structuredRequest<T>(
   userId: string,
   kind: ProviderKind,
-  skills: string[],
-  role: string,
+  groundedPrompt: string,
+  schema: z.ZodType<T>,
 ) {
   const provider = await db.provider.findUnique({
     where: { userId_kind: { userId, kind } },
@@ -112,11 +71,6 @@ export async function generateDraft(
   if (!provider?.enabled || !provider.freeConfirmed)
     throw new Error(
       "Enable a provider and confirm this model's free-tier eligibility first",
-    );
-  const context = publicContext(skills, role);
-  if (!context.skills.length)
-    throw new Error(
-      "Confirm at least one supported skill in your profile before generation",
     );
   const reserve = provider.maxOutput + 1000,
     day = new Date();
@@ -144,7 +98,6 @@ export async function generateDraft(
       },
     });
   });
-  const prompt = `Return JSON with subject and body only. Write an honest, concise expression of interest for ${context.role}. Candidate confirmed skills: ${context.skills.join(", ")}. Do not invent experience, projects, credentials, an active vacancy, names or company facts. No greeting or signature; these are added locally. Mention an attached resume. Ask whether suitable opportunities exist. 80-140 words.`;
   try {
     const key = decrypt(provider.secret);
     const data =
@@ -157,9 +110,9 @@ export async function generateDraft(
                 {
                   role: "system",
                   content:
-                    "You draft factual job-interest emails. Return a JSON object only.",
+                    "You assist a bounded career workflow. Follow the requested JSON schema only; never invent facts or execute actions.",
                 },
-                { role: "user", content: prompt },
+                { role: "user", content: groundedPrompt },
               ],
               response_format: { type: "json_object" },
               max_tokens: provider.maxOutput,
@@ -173,7 +126,7 @@ export async function generateDraft(
             {
               method: "POST",
               body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
+                contents: [{ parts: [{ text: groundedPrompt }] }],
                 generationConfig: {
                   responseMimeType: "application/json",
                   maxOutputTokens: provider.maxOutput,
@@ -186,7 +139,7 @@ export async function generateDraft(
       kind === "groq"
         ? data.choices?.[0]?.message?.content
         : data.candidates?.[0]?.content?.parts?.[0]?.text;
-    const result = draftSchema.parse(JSON.parse(raw || "{}"));
+    const result = schema.parse(JSON.parse(raw || "{}"));
     const tokens =
       kind === "groq"
         ? data.usage?.total_tokens
@@ -199,7 +152,7 @@ export async function generateDraft(
         reserved: Math.max(tokens || reserve, 0),
       },
     });
-    return { ...result, model: provider.model, provider: kind };
+    return { result, model: provider.model, provider: kind };
   } catch (error) {
     await db.aIUsage.update({
       where: { id: usage.id },
@@ -207,4 +160,76 @@ export async function generateDraft(
     });
     throw error;
   }
+}
+
+export async function generateDraft(
+  userId: string,
+  kind: ProviderKind,
+  skills: string[],
+  role: string,
+  retrieval?: RetrievalResult,
+  repair = false,
+) {
+  const context = publicContext(skills, role);
+  if (!context.skills.length)
+    throw new Error(
+      "Confirm at least one supported skill in your profile before generation",
+    );
+  const evidence = retrieval ? providerEvidence(retrieval) : [];
+  const prompt =
+    `Return JSON with subject and body only${retrieval ? ", plus evidenceIds" : ""}. Write an honest, concise expression of interest for ${context.role}. Candidate confirmed skills: ${context.skills.join(", ")}. Do not invent experience, projects, credentials, an active vacancy, names or company facts. No greeting or signature; these are added locally. Mention an attached resume. Ask whether suitable opportunities exist. 80-140 words.` +
+    (retrieval
+      ? ` Retrieved approved evidence (IDs and confirmed skill categories only): ${JSON.stringify(evidence)}. Include evidenceIds listing supporting source IDs you used. Do not put citations in the email body. Use only skills from this evidence. Sources confirm skills, not years of experience or achievements.`
+      : "") +
+    (repair
+      ? " Your previous output had invalid source references. Copy one or more exact IDs from the allowed evidence list; do not invent an ID."
+      : "");
+  const response = await structuredRequest(userId, kind, prompt, draftSchema);
+  if (retrieval)
+    validateEvidenceIds(response.result.evidenceIds || [], evidence);
+  return {
+    ...response.result,
+    model: response.model,
+    provider: response.provider,
+  };
+}
+const planSchema = z.object({
+  tool: z.enum(["retrieve_evidence", "request_review"]),
+  resume: z.string().max(20),
+  focusSkills: z.array(z.string().max(60)).max(8),
+  reason: z.enum([
+    "role_alignment",
+    "evidence_overlap",
+    "insufficient_evidence",
+  ]),
+});
+export async function planEvidence(
+  userId: string,
+  kind: ProviderKind,
+  role: string,
+  candidates: { code: string; role: string; skills: string[] }[],
+  requestedSkills: string[],
+) {
+  const safeCandidates = candidates.map((c) => ({
+    code: c.code,
+    ...publicContext(c.skills, c.role),
+  }));
+  const safeRequest = publicContext(requestedSkills, role);
+  const { result } = await structuredRequest(
+    userId,
+    kind,
+    `Choose an approved resume and retrieval focus for a factual job-interest introduction. Allowed tools: retrieve_evidence (select one listed resume code and relevant supported skills), request_review (stop if no supporting evidence). Return JSON {"tool":"retrieve_evidence" or "request_review","resume":"listed code","focusSkills":["supported skills"],"reason":"role_alignment" or "evidence_overlap" or "insufficient_evidence"}. Target: ${JSON.stringify(safeRequest)}. Approved candidate summaries: ${JSON.stringify(safeCandidates)}. Do not invent codes or skills.`,
+    planSchema,
+  );
+  if (result.tool === "request_review") return result;
+  const candidate = safeCandidates.find((c) => c.code === result.resume);
+  if (
+    !candidate ||
+    !result.focusSkills.length ||
+    result.focusSkills.some((skill) => !candidate.skills.includes(skill))
+  )
+    throw new Error(
+      "Planner requested an unapproved resume or unsupported skill; no draft or email was created",
+    );
+  return result;
 }

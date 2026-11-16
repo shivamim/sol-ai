@@ -1910,3 +1910,47 @@ summary {
     scroll-behavior: auto !important;
   }
 }
+.evidence-panel {
+  margin: 18px 0;
+  padding: 3px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.evidence-source {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.evidence-source b {
+  font-size: 11px;
+}
+.evidence-source small {
+  font-size: 9px;
+  color: var(--muted);
+}
+.source-excerpt {
+  font-size: 11px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  color: var(--muted);
+  margin: 10px 0 0;
+  max-height: 180px;
+  overflow: auto;
+}
+.workflow-steps {
+  padding-left: 18px;
+}
+.workflow-steps li {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 7px 0;
+}
+.workflow-steps b {
+  text-transform: capitalize;
+  font-weight: 600;
+  color: var(--text);
+}
+.workflow-steps p {
+  margin: 4px 0 0;
+  font-size: 10px;
+}

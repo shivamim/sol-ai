@@ -13,3 +13,5 @@ Gemini and Groq share model discovery and structured-draft interfaces. There is 
 Outbox is durable PostgreSQL state, not memory or browser timers. Queueing is transactional. Each sender takes an advisory lock scoped to user and claims a queued row conditionally. It checks current pause, suppression, resume approval, daily limit, company/recipient cooldown and content review before dispatch. There is no retry after a possibly accepted send. Stale in-flight leases become uncertain, not queued. Stable Message-ID metadata supports manual reconciliation.
 
 Vercel hosts bounded HTTP handlers. An authenticated daily cron or persistent external scheduler drains already-approved work. No indefinite worker runs inside a web request.
+
+Version 0.2 introduces `rag.ts` (local lexical retrieval), `taxonomy.ts` (closed privacy vocabulary), and `workflow.ts` (bounded planning/retrieval/writing/validation/review). The AI gateway validates planner choices before any retrieval tool runs and source-ID membership before a draft can persist. Application.intelligence stores metadata and the trace, not raw passages. See RAG_AND_AGENTS.md.

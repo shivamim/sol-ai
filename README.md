@@ -1,8 +1,14 @@
 # SOL Ai
 
-A private personal job-search workspace built for Vercel, with Next.js App Router, strict TypeScript, Clerk, Prisma/PostgreSQL, Gemini/Groq BYOK and Gmail OAuth.
+A private personal job-search workspace with local lexical RAG and bounded AI planning built for Vercel, with Next.js App Router, strict TypeScript, Clerk, Prisma/PostgreSQL, Gemini/Groq BYOK and Gmail OAuth.
 
 **This is a tested initial implementation of the reviewed application workflow, not completion of the entire autonomous-platform specification.** External accounts and live integration verification are required. Full unreviewed Autopilot and automatic follow-ups are not implemented. See the [acceptance matrix](docs/IMPLEMENTATION_STATUS.md).
+
+## RAG and agent workflow
+
+Version 0.2 adds approved-document chunking/retrieval, source references, multi-resume LLM planning with allowlisted actions, bounded citation correction and a visible evidence/workflow trace. Raw private passages remain local. This is lexical RAG, not vector search; the planner is human-supervised, not a full autonomous application system. [Architecture and limits](docs/RAG_AND_AGENTS.md) · [Portfolio presentation](docs/PORTFOLIO.md).
+
+**Existing deployments:** apply the new `20261116010000_rag_evidence` migration with `npm run db:deploy` before using the updated app.
 
 ## What works in code
 
@@ -10,6 +16,8 @@ A private personal job-search workspace built for Vercel, with Next.js App Route
 - Private immutable PDF/DOCX/TXT resume versions, local server parsing, text review, approval and authenticated downloads.
 - Permitted CSV/XLSX/pasted-email contact import, aliases, preview, email normalization, deduplication and transactional insertion.
 - Real official Gemini/Groq model discovery, encrypted API keys, configured models and atomic daily request/token reservations.
+- Local BM25-style retrieval over approved resume passages/profile skills, with immutable source locators and evidence references in the review screen.
+- A bounded AI planner for multiple approved resumes, one citation-repair attempt, and a persisted workflow trace ending at human approval.
 - A restrictive AI boundary: only fixed role/skill categories go to either provider; no raw resumes, identities, job notes or Gmail threads.
 - Draft generation → editable preview → separate factual approval → explicit Gmail send with the approved attachment.
 - Persistent outbox, send leases, server pause, daily cap, 30-day recipient/company cooldown and uncertain-result preservation.

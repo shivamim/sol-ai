@@ -13,3 +13,5 @@ Daily send limits/cooldowns are under a user-scoped transaction advisory lock. A
 Resume content is immutable after upload; only approval may change. Historical resume IDs survive explicit file deletion. There is no FK from Application to Resume to support this intentional tombstone. Never delete an active sending attachment.
 
 Back up Neon according to your plan. Free-tier backup/restore retention must be checked in your Neon project; no permanent backup guarantee. Maintain encryption-key backups separately.
+
+Version 0.2 adds Application.intelligence JSON via a forward-only migration, preserving existing applications with an empty default. Stored evidence locators/hashes permit reconstructing approved-source passages in the review UI without copying private passages into traces. Apply migrations before deploying updated code.

@@ -10,7 +10,7 @@ import {
 import { db } from "../src/lib/db";
 import { encrypt } from "../src/lib/security";
 import { processOutbox } from "../src/lib/gmail";
-import { generateDraft } from "../src/lib/ai";
+import { generateDraft, planEvidence } from "../src/lib/ai";
 const enabled = !!process.env.TEST_DATABASE_URL;
 if (enabled) process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const suite = enabled ? describe : describe.skip;
@@ -218,5 +218,58 @@ suite("PostgreSQL workflow with mocked external APIs (no real email)", () => {
     ]);
     expect(calls).toBe(1);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  });
+  it.each([
+    {
+      tool: "retrieve_evidence",
+      resume: "unlisted",
+      focusSkills: ["SQL"],
+      reason: "evidence_overlap",
+    },
+    {
+      tool: "retrieve_evidence",
+      resume: "R1",
+      focusSkills: ["Fabricated qualification"],
+      reason: "evidence_overlap",
+    },
+    {
+      tool: "send_email",
+      resume: "R1",
+      focusSkills: ["SQL"],
+      reason: "evidence_overlap",
+    },
+  ])("rejects unapproved planner decisions %j", async (decision) => {
+    await db.provider.create({
+      data: {
+        userId: uid,
+        kind: "groq",
+        secret: encrypt("test-key"),
+        model: "test-model",
+        freeConfirmed: true,
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ message: { content: JSON.stringify(decision) } }],
+              usage: { total_tokens: 100 },
+            }),
+          ),
+      ),
+    );
+    await expect(
+      planEvidence(
+        uid,
+        "groq",
+        "Data Analyst",
+        [{ code: "R1", role: "Data Analyst", skills: ["SQL"] }],
+        ["SQL"],
+      ),
+    ).rejects.toThrow();
+    expect(await db.application.count({ where: { userId: uid } })).toBe(0);
+    expect(await db.outbox.count({ where: { userId: uid } })).toBe(0);
   });
 });

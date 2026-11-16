@@ -17,3 +17,7 @@
 - **Daily cron not exact:** expected on Vercel Hobby; frequent precision requires other infrastructure.
 
 Never share credentials, full tokens or private resume/email data in bug reports. Include only error category, action and redacted record ID.
+
+- **Missing intelligence column:** apply `npm run db:deploy` for the 0.2 RAG migration, then redeploy.
+- **Planner requests evidence:** confirm skill categories and approve a relevant resume, or explicitly select the approved resume in Quick Apply. No email was sent.
+- **Unsupported citations after correction:** the model did not follow the structured grounding contract. Try a model with stronger JSON adherence; no draft was approved or sent. Both attempts consume budget reservations.

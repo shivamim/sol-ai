@@ -166,6 +166,11 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
                   message: {
                     content: JSON.stringify({
                       subject: "Expression of interest in data analytics",
+                      evidenceIds: [
+                        ...new Set(
+                          String(init?.body).match(/E[a-f0-9]{12}/g) || [],
+                        ),
+                      ].slice(0, 1),
                       body: "I am interested in suitable data analyst opportunities. My confirmed skills include SQL and Python, and I would welcome the chance to discuss how I could contribute to your team. My resume is attached for your review. Thank you for considering my introduction.",
                     }),
                   },
@@ -217,6 +222,12 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
     });
     expect(generated.status).toBe(200);
     const { application } = await generated.json();
+    expect(application.intelligence.version).toBe("bounded-rag-agent-v1");
+    expect(application.intelligence.retrieval.evidence.length).toBeGreaterThan(
+      0,
+    );
+    expect(application.intelligence.citations.length).toBeGreaterThan(0);
+    expect(application.intelligence.steps.at(-1).status).toBe("waiting");
     expect(aiPayloads.join(" ")).not.toMatch(
       /Test Candidate|recruiter@example.com|Private Company|confidential employer/,
     );

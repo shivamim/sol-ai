@@ -1,3 +1,4 @@
+import { prepareApplication } from "@/lib/workflow";
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
@@ -10,10 +11,9 @@ import {
   contactSchema,
   emailSchema,
   quality,
-  chooseResume,
   classifyReply,
 } from "@/lib/domain";
-import { generateDraft, listModels } from "@/lib/ai";
+import { listModels } from "@/lib/ai";
 import { decrypt } from "@/lib/security";
 import { accessToken, gmailRequest, processOutbox } from "@/lib/gmail";
 export const runtime = "nodejs";
@@ -497,24 +497,29 @@ export async function POST(req: NextRequest, ctx: Context) {
       const profile = profileSchema.parse(workspace?.profile);
       const resumes = await db.resume.findMany({
         where: { userId: uid, approved: true },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          text: true,
+          approved: true,
+          hash: true,
+        },
       });
-      const resume = d.resumeId
-        ? resumes.find((r) => r.id === d.resumeId)
-        : chooseResume(resumes, d.role);
-      if (!resume) throw new Error("Upload and approve a resume first");
       const existing = await db.contact.findUnique({
         where: { userId_email: { userId: uid, email: d.email } },
       });
       if (existing?.suppressed) throw new Error("This recipient is suppressed");
-      const draft = await generateDraft(
-        uid,
-        d.provider,
-        profile.skills,
-        d.role,
-      );
-      const body = `Hello,\n\n${draft.body}\n\n${profile.signature || profile.name}`;
-      const errors = quality(draft.subject, body);
-      if (errors.length) throw new Error(errors.join("; "));
+      const { resume, draft, body, intelligence } = await prepareApplication({
+        userId: uid,
+        provider: d.provider,
+        skills: profile.skills,
+        role: d.role,
+        description: d.description,
+        signature: profile.signature || profile.name,
+        resumeId: d.resumeId,
+        resumes,
+      });
       const companyKey =
         d.company.trim().toLowerCase() || d.email.split("@")[1];
       const result = await db.$transaction(async (tx) => {
@@ -538,6 +543,7 @@ export async function POST(req: NextRequest, ctx: Context) {
             description: d.description,
             jobUrl: d.jobUrl,
             resumeId: resume.id,
+            intelligence,
             subject: draft.subject,
             body,
             provider: draft.provider,

@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import type { RetrievalResult } from "@/lib/rag";
+import type { WorkflowStep } from "@/lib/workflow";
 import {
   useEffect,
   useRef,
@@ -71,6 +73,12 @@ type Application = {
   createdAt: string;
   jobUrl: string;
   description: string;
+  intelligence?: {
+    version?: string;
+    retrieval?: RetrievalResult;
+    steps?: WorkflowStep[];
+    citations?: string[];
+  };
 };
 type Profile = {
   name: string;
@@ -994,7 +1002,9 @@ function Shell({
                   <div className="form-grid">
                     <Field label="Approved resume">
                       <select name="resumeId">
-                        <option value="">Choose by target role</option>
+                        <option value="">
+                          Agent selects from approved evidence
+                        </option>
                         {resumes
                           .filter((r) => r.approved)
                           .map((r) => (
@@ -1753,6 +1763,66 @@ function ApplicationModal({
           >
             Open original job posting <ExternalLink size={14} />
           </a>
+        )}
+        {app.intelligence?.retrieval && (
+          <details className="evidence-panel">
+            <summary>
+              Why this draft? View retrieved evidence & workflow
+            </summary>
+            <p className="fine">
+              Local lexical RAG · approved sources only. Relevance scores are
+              search rankings, not hiring probabilities. Citations do not
+              automatically prove every statement.
+            </p>
+            {app.intelligence.retrieval.evidence.map((source) => (
+              <article key={source.id} className="evidence-source">
+                <div className="row-between">
+                  <b>{source.label}</b>
+                  <Badge
+                    tone={
+                      app.intelligence?.citations?.includes(source.id)
+                        ? "green"
+                        : "neutral"
+                    }
+                  >
+                    {app.intelligence?.citations?.includes(source.id)
+                      ? "Referenced by writer"
+                      : "Retrieved"}
+                  </Badge>
+                </div>
+                <small>
+                  {source.id} · relevance {source.score} ·{" "}
+                  {source.skills.join(", ")}
+                </small>
+                <p className="source-excerpt">
+                  {source.kind === "profile"
+                    ? source.skills.join(", ")
+                    : resume?.id === source.documentId
+                      ? resume.text.slice(source.start, source.end)
+                      : "Original source was deleted. Its immutable hash and locator remain in this trace."}
+                </p>
+              </article>
+            ))}
+            <ol className="workflow-steps">
+              {app.intelligence.steps?.map((step) => (
+                <li key={step.tool}>
+                  <b>
+                    {step.tool.replaceAll("_", " ")} · {step.status}
+                  </b>
+                  <p>{step.detail}</p>
+                </li>
+              ))}
+            </ol>
+            {app.intelligence.retrieval.warnings.map((warning) => (
+              <p key={warning} className="fine">
+                {warning}
+              </p>
+            ))}
+            <p className="fine">
+              This trail describes original generation. If you edit the email,
+              review whether its claims are still supported.
+            </p>
+          </details>
         )}
         <Field label="Subject">
           <input

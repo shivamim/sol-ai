@@ -129,6 +129,7 @@ model Application {
   status         TransportStatus @default(REVIEW_REQUIRED)
   outcome        String          @default("PENDING")
   approvedAt     DateTime?
+  intelligence   Json            @default("{}")
   claimConfirmed Boolean         @default(false)
   gmailId        String?
   threadId       String?
