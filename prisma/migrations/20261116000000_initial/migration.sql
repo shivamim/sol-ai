@@ -259,4 +259,3 @@ ALTER TABLE "Reply" ADD CONSTRAINT "Reply_applicationId_userId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "Opportunity" ADD CONSTRAINT "Opportunity_userId_fkey" FOREIGN KEY ("userId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

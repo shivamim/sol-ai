@@ -33,7 +33,7 @@ Open `http://localhost:3000`. Without Clerk configuration the home page displays
 
 ## Deploy on Vercel
 
-1. Import `shivamim/sol-ai` into Vercel as a Next.js project (Node 22).
+1. Import `shivamim/sol-ai` into Vercel as a Next.js project (Node 22.12 or newer in the 22.x release line).
 2. Create Neon and Clerk projects. Set the variables in [.env.example](.env.example) in Vercel.
 3. Run `npm run db:deploy` against your Neon database from a trusted terminal. Build does **not** mutate the database automatically.
 4. Deploy. Configure your Clerk production domain, Google callback and `APP_BASE_URL` with the stable Vercel URL.

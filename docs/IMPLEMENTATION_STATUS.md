@@ -37,7 +37,7 @@ Updated 2026-11-16. This repository implements a reviewed personal-application w
 - API vertical slice tested profile → TXT resume → approval → provider model configuration → generation → content approval → mocked Gmail acceptance with attachment. External calls are mocked; no email was sent during tests.
 - Tests cover tenant read isolation, composite ownership constraints, unauthenticated access, owner allowlist, cross-origin rejection, encrypted-key response exclusion, atomic invalid import rejection, approval/send replay protection, duplicate sender concurrency, expired tokens, uncertain sends, suppression, pause, company cooldown and concurrent AI request-budget reservation.
 - Type checking, ESLint and Next.js production build passed during implementation. Final results are recorded in the Git commit and CI configuration.
-- Production dependency audit reported zero known vulnerabilities after compatible dependency overrides. An audit is not proof of overall security.
+- Full dependency audit (including development/test tooling) reported zero known vulnerabilities after updates and compatible dependency overrides. An audit is not proof of overall security.
 - Official Vercel/Neon/Clerk/Gemini/Gmail/Greenhouse/Lever documentation accessed; Groq documentation endpoints returned HTTP 403, so current Groq data terms were not independently verified.
 - Browser QA not performed: required managed browser tooling was unavailable. No substitute preview server or browser was started.
 - No live Clerk, Neon, Gmail, AI or Vercel credentials were supplied. Those integrations and production hosting were not verified live.
