@@ -1,12 +1,18 @@
-# Implementation status — SOL Ai
+# Implementation status  -  SOL Ai
 
-Updated 2026-11-16 for version 0.2. This repository implements a reviewed personal-application workflow. **It does not yet satisfy the full production/autonomy brief.** Never describe all original acceptance scenarios as complete.
+Updated 2026-11-16 for version 0.3. This repository implements a reviewed personal-application workflow. **It does not yet satisfy the full production/autonomy brief.** Never describe all original acceptance scenarios as complete.
+
+## Version 0.3 upgrade
+
+Implemented a two-decision observe-and-act Agent mode, persistent AgentRun checkpoints and sanitized stop states, stale-run detection, a dedicated Agent Studio, local opportunity skill-gap analysis and stricter writing checks. The API test now covers the full three-call agent path. The overview and review interfaces have been redesigned. See [VERSION_0_3.md](VERSION_0_3.md) for behavior and deployment requirements.
+
+Agent runs are inspectable but do not resume mid-provider-call or automatically replay after a crash. Email approval remains separate. No browser or live-provider verification is claimed.
 
 ## Version 0.2 upgrade
 
 Implemented local BM25-style RAG with approved-document chunking, privacy-safe skill/evidence projection, stable source locators, output citation validation and an inspectable review panel. A bounded LLM planner can select retrieval from one of up to three approved resume candidates or stop for human review. Explicit resume selection skips planning; invalid citations receive at most one budgeted correction. No send tool is exposed to this workflow.
 
-This is real lexical retrieval-augmented generation and constrained AI planning, not vector RAG or a complete autonomous platform. Private passages stay local. Citations are checked for membership, not semantic entailment. Failed pre-draft runs do not yet have durable checkpoint records. New migration: `20261116010000_rag_evidence`. Read [RAG_AND_AGENTS.md](RAG_AND_AGENTS.md) and [PORTFOLIO.md](PORTFOLIO.md).
+This is real lexical retrieval-augmented generation and constrained AI planning, not vector RAG or a complete autonomous platform. Private passages stay local. Citations are checked for membership, not semantic entailment. Version 0.3 adds durable checkpoint records and failure states for pre-draft runs. New migration: `20261116010000_rag_evidence`. Read [RAG_AND_AGENTS.md](RAG_AND_AGENTS.md) and [PORTFOLIO.md](PORTFOLIO.md).
 
 ## Phase results
 
@@ -39,7 +45,7 @@ This is real lexical retrieval-augmented generation and constrained AI planning,
 ## Verification actually performed
 
 - PostgreSQL 17 migration applied successfully to a disposable Docker database.
-- 58 automated tests passed: 19 domain/security tests, 11 retrieval tests, 7 bounded-workflow tests, 12 database/concurrency/planner-gate tests and 9 authenticated API tests.
+- 73 automated tests passed, including domain/security, retrieval, bounded workflow, the observe-and-act loop, opportunity/writing checks, PostgreSQL concurrency/gates and authenticated APIs.
 - API vertical slice tested profile → TXT resume → approval → provider model configuration → generation → content approval → mocked Gmail acceptance with attachment. External calls are mocked; no email was sent during tests.
 - Tests cover tenant read isolation, composite ownership constraints, unauthenticated access, owner allowlist, cross-origin rejection, encrypted-key response exclusion, atomic invalid import rejection, approval/send replay protection, duplicate sender concurrency, expired tokens, uncertain sends, suppression, pause, company cooldown and concurrent AI request-budget reservation.
 - Type checking, ESLint and Next.js production build passed during implementation. Final results are recorded in the Git commit and CI configuration.

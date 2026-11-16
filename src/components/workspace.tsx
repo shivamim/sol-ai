@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import AgentStudio, { type AgentRunView } from "./agent-studio";
+import type { analyzeOpportunity } from "@/lib/opportunity";
 import type { RetrievalResult } from "@/lib/rag";
 import type { WorkflowStep } from "@/lib/workflow";
 import {
@@ -78,6 +80,7 @@ type Application = {
     retrieval?: RetrievalResult;
     steps?: WorkflowStep[];
     citations?: string[];
+    opportunity?: ReturnType<typeof analyzeOpportunity>;
   };
 };
 type Profile = {
@@ -121,6 +124,7 @@ type State = {
   }[];
   jobs: Job[];
   usage: { tokens: number; status: string; provider: string }[];
+  agentRuns: AgentRunView[];
 };
 const navigation = [
   {
@@ -128,6 +132,7 @@ const navigation = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
       { id: "apply", label: "Quick Apply", icon: Sparkles },
+      { id: "agent", label: "Agent Studio", icon: Zap },
       { id: "applications", label: "Applications", icon: BriefcaseBusiness },
       { id: "jobs", label: "Job Discovery", icon: Search },
       { id: "contacts", label: "Recruiter Contacts", icon: Users },
@@ -146,8 +151,12 @@ const navigation = [
   },
 ];
 const titles: Record<string, [string, string]> = {
+  agent: [
+    "An agent you can follow.",
+    "Inspect decisions, source checks and the actions that need your approval.",
+  ],
   overview: [
-    "A clearer path to your next chapter.",
+    "Your career, in motion.",
     "Your search, thoughtfully organized. Let's make the next move count.",
   ],
   apply: [
@@ -308,7 +317,12 @@ function Shell({
     [mobile, setMobile] = useState(false),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState<Application | null>(null),
-    [theme, setTheme] = useState("light");
+    [theme, setTheme] = useState("light"),
+    [preparing, setPreparing] = useState(false),
+    [lastPreparation, setLastPreparation] = useState<Record<
+      string,
+      string
+    > | null>(null);
   async function refresh() {
     setLoading(true);
     try {
@@ -344,9 +358,33 @@ function Shell({
     const frame = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(frame);
   }, []);
+  useEffect(() => {
+    if (!signedIn || !preparing) return;
+    let active = true;
+    const timer = setInterval(() => {
+      request("agent-runs", undefined, "GET")
+        .then((data) => {
+          if (active)
+            setState((previous) =>
+              previous ? { ...previous, agentRuns: data.runs } : previous,
+            );
+        })
+        .catch(() => {
+          if (active)
+            setError(
+              "Live progress could not be refreshed. The preparation request may still complete.",
+            );
+        });
+    }, 2500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [signedIn, preparing]);
   async function act(path: string, data?: unknown, method = "POST") {
     setError("");
     setMessage("");
+    if (path === "applications/generate") setPreparing(true);
     try {
       if (!signedIn)
         throw new Error(
@@ -361,6 +399,8 @@ function Shell({
     } catch (e) {
       setError((e as Error).message);
       return null;
+    } finally {
+      if (path === "applications/generate") setPreparing(false);
     }
   }
   function go(id: string) {
@@ -583,74 +623,68 @@ function Shell({
               </button>
             </div>
           )}
+          {view === "agent" && (
+            <AgentStudio
+              runs={state?.agentRuns || []}
+              preparing={preparing}
+              onPrepare={() => go("apply")}
+              onOpen={(id) => {
+                const application = apps.find((a) => a.id === id);
+                if (application) setSelected(application);
+                else setError("This application is no longer available.");
+              }}
+            />
+          )}
           {view === "overview" && (
             <>
-              <section className="hero-card">
-                <div className="hero-copy">
-                  <span className="hero-tag">
-                    <span />
-                    INTENTIONAL APPLICATIONS. REAL POSSIBILITIES.
+              <section className="mission-card">
+                <div>
+                  <span className="studio-kicker">
+                    <Sparkles size={15} />
+                    YOUR NEXT MOVE
                   </span>
                   <h2>
-                    Your next move,
+                    Less searching in circles.
                     <br />
-                    with a little more clarity.
+                    More meaningful progress.
                   </h2>
                   <p>
-                    Less busywork. More meaningful connections.
-                    <br />
-                    Build a job search that works around your life.
+                    Prepare with evidence. Review with confidence. Keep every
+                    opportunity moving in one focused workspace.
                   </p>
-                  <button
-                    onClick={() =>
-                      go(
-                        progress < 4
-                          ? setup.find((s) => !s.done)!.view
-                          : "apply",
-                      )
-                    }
-                    className="button dark"
-                  >
-                    {progress < 4
-                      ? "Set up your workspace"
-                      : "Prepare an application"}
-                    <ArrowRight size={16} />
-                  </button>
-                  <span className="hero-foot">
-                    <ShieldCheck size={13} />
-                    You stay in control of every application.
-                  </span>
+                  <div className="button-row">
+                    <button className="button" onClick={() => go("apply")}>
+                      <Plus size={16} />
+                      Prepare an application
+                    </button>
+                    <button
+                      className="button secondary"
+                      onClick={() => go("agent")}
+                    >
+                      Open Agent Studio <ArrowUpRight size={15} />
+                    </button>
+                  </div>
                 </div>
-                <div className="orbit-art" aria-hidden="true">
-                  <div className="orbit outer" />
-                  <div className="orbit middle" />
-                  <div className="orbit inner" />
-                  <div className="art-core">
-                    <Sun size={48} />
+                <div className="mission-readiness">
+                  <div className="row-between">
+                    <h3>Workspace readiness</h3>
+                    <span>{progress} / 4</span>
                   </div>
-                  <div className="floating note-one">
-                    <span className="green-icon">
-                      <Check size={15} />
-                    </span>
-                    <div>
-                      Thoughtfully prepared
-                      <small>Grounded in your experience</small>
-                    </div>
-                  </div>
-                  <div className="floating note-two">
-                    <span className="purple-icon">
-                      <Sparkles size={17} />
-                    </span>
-                    <div>
-                      A more focused search
-                      <small>One good opportunity at a time</small>
-                    </div>
-                  </div>
-                  <i className="orbit-dot dot-one" />
-                  <i className="orbit-dot dot-two" />
-                  <span className="art-caption">
-                    A LITTLE HELP. ALL YOUR POTENTIAL.
-                  </span>
+                  {setup.map((item) => (
+                    <button key={item.view} onClick={() => go(item.view)}>
+                      <span
+                        className={
+                          item.done
+                            ? "readiness-check complete"
+                            : "readiness-check"
+                        }
+                      >
+                        {item.done ? <Check size={13} /> : <span />}
+                      </span>
+                      <span>{item.label}</span>
+                      <ArrowUpRight size={13} />
+                    </button>
+                  ))}
                 </div>
               </section>
               <section className="stats">
@@ -693,7 +727,7 @@ function Shell({
                     </div>
                     <strong>
                       {s.value}
-                      <span>—</span>
+                      <span aria-hidden="true">↗</span>
                     </strong>
                     <small>{s.sub}</small>
                   </div>
@@ -955,7 +989,23 @@ function Shell({
                 <Form
                   key={profile.role}
                   onSubmit={async (f) => {
+                    setLastPreparation(
+                      Object.fromEntries(
+                        [
+                          "email",
+                          "company",
+                          "role",
+                          "description",
+                          "jobUrl",
+                          "resumeId",
+                          "provider",
+                          "mode",
+                        ].map((name) => [name, String(f.get(name) || "")]),
+                      ),
+                    );
+                    if (f.get("mode") === "agentic") setView("agent");
                     const r = await act("applications/generate", {
+                      mode: f.get("mode"),
                       email: f.get("email"),
                       company: f.get("company"),
                       role: f.get("role"),
@@ -965,26 +1015,54 @@ function Shell({
                       resumeId: String(f.get("resumeId")) || undefined,
                       permitted: f.get("permitted") === "on",
                     });
-                    if (r) setSelected(r.application);
+                    if (r) {
+                      setSelected(r.application);
+                      setLastPreparation(null);
+                    }
                   }}
                 >
+                  <div className="mode-picker">
+                    <Field label="Preparation mode">
+                      <select
+                        name="mode"
+                        defaultValue={lastPreparation?.mode || "agentic"}
+                      >
+                        <option value="agentic">
+                          Agent: plan, retrieve, observe, draft
+                        </option>
+                        <option value="assisted">
+                          Assisted: direct evidence-backed draft
+                        </option>
+                      </select>
+                    </Field>
+                    <p>
+                      Agent mode uses up to three budgeted AI calls. Assisted
+                      mode usually uses one. Both require your approval before
+                      sending.
+                    </p>
+                  </div>
                   <Field label="Recruiter email">
                     <input
                       required
                       type="email"
                       name="email"
+                      defaultValue={lastPreparation?.email}
                       placeholder="recruiter@company.com"
                     />
                   </Field>
                   <div className="form-grid">
                     <Field label="Company (optional)">
-                      <input name="company" placeholder="Company name" />
+                      <input
+                        name="company"
+                        defaultValue={lastPreparation?.company}
+                        placeholder="Company name"
+                      />
                     </Field>
                     <Field label="Target role">
                       <input
                         name="role"
                         required
-                        defaultValue={profile.role}
+                        defaultValue={lastPreparation?.role || profile.role}
                         placeholder="Data Analyst"
                       />
                     </Field>
@@ -992,16 +1070,25 @@ function Shell({
                   <Field label="Opportunity notes / pasted job description (optional)">
                     <textarea
                       name="description"
+                      defaultValue={lastPreparation?.description}
                       rows={5}
                       placeholder="Private context for your review; never sent to the AI writer."
                     />
                   </Field>
                   <Field label="Official job URL (optional)">
-                    <input name="jobUrl" type="url" placeholder="https://..." />
+                    <input
+                      name="jobUrl"
+                      defaultValue={lastPreparation?.jobUrl}
+                      type="url"
+                      placeholder="https://..."
+                    />
                   </Field>
                   <div className="form-grid">
                     <Field label="Approved resume">
-                      <select name="resumeId">
+                      <select
+                        name="resumeId"
+                        defaultValue={lastPreparation?.resumeId || ""}
+                      >
                         <option value="">
                           Agent selects from approved evidence
                         </option>
@@ -1015,7 +1102,10 @@ function Shell({
                       </select>
                     </Field>
                     <Field label="AI provider">
-                      <select name="provider">
+                      <select
+                        name="provider"
+                        defaultValue={lastPreparation?.provider || "groq"}
+                      >
                         <option value="groq">Groq</option>
                         <option value="gemini">Gemini</option>
                       </select>
@@ -1763,6 +1853,49 @@ function ApplicationModal({
           >
             Open original job posting <ExternalLink size={14} />
           </a>
+        )}
+        {app.intelligence?.opportunity && (
+          <section className="opportunity-report">
+            <div className="row-between">
+              <h3>Opportunity brief</h3>
+              <span className="badge">
+                {app.intelligence.opportunity.coverage === null
+                  ? "Speculative introduction"
+                  : `${app.intelligence.opportunity.matchedSkills.length} of ${app.intelligence.opportunity.requestedSkills.length} skill mentions confirmed`}
+              </span>
+            </div>
+            <div className="opportunity-columns">
+              <div>
+                <b>Confirmed matches</b>
+                <div className="skill-tags">
+                  {app.intelligence.opportunity.matchedSkills.length ? (
+                    app.intelligence.opportunity.matchedSkills.map((skill) => (
+                      <span key={skill}>{skill}</span>
+                    ))
+                  ) : (
+                    <small>No matched skill categories</small>
+                  )}
+                </div>
+              </div>
+              <div>
+                <b>Needs confirmation</b>
+                <div className="skill-tags missing">
+                  {app.intelligence.opportunity.missingSkills.length ? (
+                    app.intelligence.opportunity.missingSkills.map((skill) => (
+                      <span key={skill}>{skill}</span>
+                    ))
+                  ) : (
+                    <small>No additional known skill categories detected</small>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p>
+              Known skill categories only. This is not a hiring score. Work
+              authorization, experience and mandatory requirements still need
+              your review.
+            </p>
+          </section>
         )}
         {app.intelligence?.retrieval && (
           <details className="evidence-panel">

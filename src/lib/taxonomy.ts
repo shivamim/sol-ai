@@ -1,5 +1,5 @@
 // Fixed provider-safe categories. Private free text must never be added here.
-const taxonomy = [
+export const taxonomy = [
   "Python",
   "SQL",
   "JavaScript",

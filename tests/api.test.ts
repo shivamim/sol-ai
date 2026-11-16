@@ -14,6 +14,8 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 import { db } from "../src/lib/db";
 import { POST, GET, DELETE } from "../src/app/api/[...path]/route";
+import { trackPreparation } from "../src/lib/run-history";
+import { AgentReviewRequired } from "../src/lib/agent";
 import { decrypt, encrypt } from "../src/lib/security";
 const suite = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
@@ -159,6 +161,38 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
           return new Response(JSON.stringify({ data: [{ id: "test-model" }] }));
         if (String(url).includes("chat/completions")) {
           aiPayloads.push(String(init?.body));
+          const prompt = JSON.parse(String(init?.body)).messages.at(-1)
+            .content as string;
+          if (
+            prompt.startsWith(
+              "You are a constrained application preparation agent",
+            )
+          )
+            return new Response(
+              JSON.stringify({
+                choices: [
+                  {
+                    message: {
+                      content: JSON.stringify({
+                        tool: prompt.includes(
+                          '"allowedTools":["draft_application"',
+                        )
+                          ? "draft_application"
+                          : "retrieve_evidence",
+                        resume: "R1",
+                        focusSkills: ["SQL", "Python"],
+                        reason: prompt.includes(
+                          '"allowedTools":["draft_application"',
+                        )
+                          ? "sufficient_evidence"
+                          : "evidence_overlap",
+                      }),
+                    },
+                  },
+                ],
+                usage: { total_tokens: 100 },
+              }),
+            );
           return new Response(
             JSON.stringify({
               choices: [
@@ -217,16 +251,19 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
       company: "Private Company",
       role: "Data Analyst",
       description: "Private job notes from confidential employer",
+      mode: "agentic",
       provider: "groq",
       permitted: true,
     });
     expect(generated.status).toBe(200);
     const { application } = await generated.json();
-    expect(application.intelligence.version).toBe("bounded-rag-agent-v1");
+    expect(application.intelligence.version).toBe("bounded-rag-agent-v2");
     expect(application.intelligence.retrieval.evidence.length).toBeGreaterThan(
       0,
     );
     expect(application.intelligence.citations.length).toBeGreaterThan(0);
+    expect(aiPayloads.length).toBe(3);
+    expect(application.intelligence.mode).toBe("agentic");
     expect(application.intelligence.steps.at(-1).status).toBe("waiting");
     expect(aiPayloads.join(" ")).not.toMatch(
       /Test Candidate|recruiter@example.com|Private Company|confidential employer/,
@@ -265,6 +302,15 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
       where: { id: application.id },
     });
     expect(sent.gmailId).toBe("mock-gmail-id");
+    expect(
+      await db.agentRun.count({
+        where: {
+          userId: uid,
+          applicationId: application.id,
+          status: "APPROVED",
+        },
+      }),
+    ).toBe(1);
     expect(sent.resumeId).toBe(resume.id);
   });
   it("requires a matching cron secret", async () => {
@@ -293,5 +339,49 @@ suite("Authenticated API vertical slice with mocked Gmail/AI", () => {
     expect(r.status).toBe(200);
     expect(await db.contact.count({ where: { userId: uid } })).toBe(0);
     expect(await db.contact.count({ where: { userId: other } })).toBe(1);
+  });
+  it("persists stopped agent runs without leaking raw error contents", async () => {
+    await expect(
+      trackPreparation(uid, "agentic", async (checkpoint) => {
+        await checkpoint({
+          tool: "plan",
+          status: "completed",
+          detail: "Approved retrieval only",
+        });
+        throw new AgentReviewRequired("private diagnostic");
+      }),
+    ).rejects.toThrow();
+    const run = await db.agentRun.findFirstOrThrow({ where: { userId: uid } });
+    expect(run.status).toBe("NEEDS_REVIEW");
+    expect(run.errorCode).toBe("NEEDS_EVIDENCE");
+    expect(JSON.stringify(run)).not.toContain("private diagnostic");
+    expect(Array.isArray(run.steps) && run.steps.length).toBe(1);
+    session.id = other;
+    const state = await (await get("state")).json();
+    expect(state.agentRuns).toEqual([]);
+  });
+  it("persists provider-limited runs without creating an application", async () => {
+    await expect(
+      trackPreparation(uid, "agentic", async () => {
+        throw new Error("Daily AI budget exhausted");
+      }),
+    ).rejects.toThrow();
+    const run = await db.agentRun.findFirstOrThrow({ where: { userId: uid } });
+    expect(run.errorCode).toBe("PROVIDER_LIMIT");
+    expect(await db.application.count({ where: { userId: uid } })).toBe(0);
+  });
+  it("marks stale running preparations interrupted without retrying", async () => {
+    const run = await db.agentRun.create({
+      data: {
+        userId: uid,
+        mode: "agentic",
+        goal: "Test goal",
+        updatedAt: new Date(Date.now() - 180000),
+      },
+    });
+    await get("state");
+    expect(
+      (await db.agentRun.findUniqueOrThrow({ where: { id: run.id } })).status,
+    ).toBe("INTERRUPTED");
   });
 });

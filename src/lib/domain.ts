@@ -89,10 +89,12 @@ export function matchSkills(skills: string[], description: string) {
 }
 export function quality(subject: string, body: string) {
   const errors: string[] = [];
+  if (/\u2014/.test(subject + body))
+    errors.push("Use commas or full stops instead of em dashes");
   if (!subject.trim() || subject.length > 180 || /[\r\n]/.test(subject))
-    errors.push("Use a single-line subject of 1–180 characters");
+    errors.push("Use a single-line subject of 1-180 characters");
   if (body.trim().length < 80 || body.length > 6000)
-    errors.push("Body must be 80–6000 characters");
+    errors.push("Body must be 80-6000 characters");
   if (/\{\{|\[insert|\[your|<candidate|CANDIDATE_NAME/i.test(body))
     errors.push("Resolve placeholders");
   return errors;

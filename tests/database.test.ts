@@ -10,7 +10,7 @@ import {
 import { db } from "../src/lib/db";
 import { encrypt } from "../src/lib/security";
 import { processOutbox } from "../src/lib/gmail";
-import { generateDraft, planEvidence } from "../src/lib/ai";
+import { generateDraft, planEvidence, decideAgentAction } from "../src/lib/ai";
 const enabled = !!process.env.TEST_DATABASE_URL;
 if (enabled) process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const suite = enabled ? describe : describe.skip;
@@ -271,5 +271,49 @@ suite("PostgreSQL workflow with mocked external APIs (no real email)", () => {
     ).rejects.toThrow();
     expect(await db.application.count({ where: { userId: uid } })).toBe(0);
     expect(await db.outbox.count({ where: { userId: uid } })).toBe(0);
+  });
+  it("rejects drafting before retrieval in the real decision gate", async () => {
+    await db.provider.create({
+      data: {
+        userId: uid,
+        kind: "groq",
+        secret: encrypt("test-key"),
+        model: "test-model",
+        freeConfirmed: true,
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      tool: "draft_application",
+                      resume: "R1",
+                      focusSkills: ["SQL"],
+                      reason: "sufficient_evidence",
+                    }),
+                  },
+                },
+              ],
+              usage: { total_tokens: 100 },
+            }),
+          ),
+      ),
+    );
+    await expect(
+      decideAgentAction(uid, "groq", {
+        role: "Data Analyst",
+        candidates: [{ code: "R1", role: "Data Analyst", skills: ["SQL"] }],
+        requestedSkills: ["SQL"],
+        missingSkills: [],
+        evidence: [],
+        stage: "select",
+      }),
+    ).rejects.toThrow(/current permissions/);
   });
 });

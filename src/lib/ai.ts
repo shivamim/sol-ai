@@ -1,3 +1,4 @@
+import { normalizeWriting } from "./opportunity";
 import { db } from "./db";
 import { decrypt } from "./security";
 import { z } from "zod";
@@ -184,11 +185,19 @@ export async function generateDraft(
     (repair
       ? " Your previous output had invalid source references. Copy one or more exact IDs from the allowed evidence list; do not invent an ID."
       : "");
-  const response = await structuredRequest(userId, kind, prompt, draftSchema);
+  const response = await structuredRequest(
+    userId,
+    kind,
+    prompt +
+      " Never use em dashes. Use clear sentences and plain professional language.",
+    draftSchema,
+  );
   if (retrieval)
     validateEvidenceIds(response.result.evidenceIds || [], evidence);
   return {
     ...response.result,
+    subject: normalizeWriting(response.result.subject),
+    body: normalizeWriting(response.result.body),
     model: response.model,
     provider: response.provider,
   };
@@ -231,5 +240,69 @@ export async function planEvidence(
     throw new Error(
       "Planner requested an unapproved resume or unsupported skill; no draft or email was created",
     );
+  return result;
+}
+
+const actionSchema = z.object({
+  tool: z.enum(["retrieve_evidence", "draft_application", "request_review"]),
+  resume: z.string().max(20),
+  focusSkills: z.array(z.string().max(60)).max(8),
+  reason: z.enum([
+    "role_alignment",
+    "evidence_overlap",
+    "sufficient_evidence",
+    "insufficient_evidence",
+    "skill_gap",
+  ]),
+});
+export async function decideAgentAction(
+  userId: string,
+  kind: ProviderKind,
+  input: {
+    role: string;
+    candidates: { code: string; role: string; skills: string[] }[];
+    requestedSkills: string[];
+    missingSkills: string[];
+    evidence: { id: string; skills: string[] }[];
+    stage: "select" | "observe";
+  },
+) {
+  const candidates = input.candidates.map((c) => ({
+    code: c.code,
+    ...publicContext(c.skills, c.role),
+  }));
+  const allowed =
+    input.stage === "select"
+      ? ["retrieve_evidence", "request_review"]
+      : ["draft_application", "request_review"];
+  const safe = {
+    target: publicContext(input.requestedSkills, input.role),
+    candidates,
+    missingSkills: publicContext(input.missingSkills, "").skills,
+    evidence: input.evidence.map((e) => ({
+      id: e.id,
+      skills: publicContext(e.skills, "").skills,
+    })),
+    allowedTools: allowed,
+  };
+  const { result } = await structuredRequest(
+    userId,
+    kind,
+    `You are a constrained application preparation agent. Observe the supplied state and choose one allowed tool. Retrieve approved evidence before drafting. If evidence is insufficient or suitability needs clarification, request_review. Missing skills must never become candidate qualifications. This is an expression of interest, not proof of an active vacancy. Return JSON {"tool":"retrieve_evidence"|"draft_application"|"request_review","resume":"listed code or empty when stopping","focusSkills":["confirmed skills"],"reason":"role_alignment"|"evidence_overlap"|"sufficient_evidence"|"insufficient_evidence"|"skill_gap"}. State: ${JSON.stringify(safe)}. No email sending or arbitrary tools exist.`,
+    actionSchema,
+  );
+  if (!allowed.includes(result.tool))
+    throw new Error("Agent chose a tool outside its current permissions");
+  if (result.tool === "retrieve_evidence") {
+    const candidate = candidates.find((c) => c.code === result.resume);
+    if (
+      !candidate ||
+      !result.focusSkills.length ||
+      result.focusSkills.some((skill) => !candidate.skills.includes(skill))
+    )
+      throw new Error("Agent requested unapproved evidence");
+  }
+  if (result.tool === "draft_application" && !input.evidence.length)
+    throw new Error("Agent cannot draft without retrieved evidence");
   return result;
 }

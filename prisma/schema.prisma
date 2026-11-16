@@ -29,6 +29,7 @@ model Workspace {
   auditRecords       Audit[]
   replyRecords       Reply[]
   opportunityRecords Opportunity[]
+  agentRuns          AgentRun[]
   gmailAccount       GmailAccount?
   profile            Json          @default("{}")
   paused             Boolean       @default(true)
@@ -202,4 +203,22 @@ model Opportunity {
 
   @@unique([userId, source, externalId])
   @@index([userId, createdAt])
+}
+
+model AgentRun {
+  id            String    @id @default(cuid())
+  userId        String
+  workspace     Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode          String
+  goal          String
+  status        String    @default("RUNNING")
+  steps         Json      @default("[]")
+  applicationId String?   @unique
+  summary       String    @default("")
+  errorCode     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
 }

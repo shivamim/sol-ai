@@ -4,6 +4,12 @@ A private personal job-search workspace with local lexical RAG and bounded AI pl
 
 **This is a tested initial implementation of the reviewed application workflow, not completion of the entire autonomous-platform specification.** External accounts and live integration verification are required. Full unreviewed Autopilot and automatic follow-ups are not implemented. See the [acceptance matrix](docs/IMPLEMENTATION_STATUS.md).
 
+## Version 0.3
+
+Agent mode now observes retrieved evidence before deciding whether to draft or request review. Runs and failures are persisted and inspectable in the new Agent Studio. The UI has a readiness-focused overview, clearer typography and an opportunity brief. Em dashes are excluded from authored copy and email writing. [Upgrade notes](docs/VERSION_0_3.md).
+
+**Existing deployments:** run `npm run db:deploy` for `20261116020000_agent_runs` before using 0.3.
+
 ## RAG and agent workflow
 
 Version 0.2 adds approved-document chunking/retrieval, source references, multi-resume LLM planning with allowlisted actions, bounded citation correction and a visible evidence/workflow trace. Raw private passages remain local. This is lexical RAG, not vector search; the planner is human-supervised, not a full autonomous application system. [Architecture and limits](docs/RAG_AND_AGENTS.md) · [Portfolio presentation](docs/PORTFOLIO.md).

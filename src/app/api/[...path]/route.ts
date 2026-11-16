@@ -1,3 +1,4 @@
+import { trackPreparation, listAgentRuns } from "@/lib/run-history";
 import { prepareApplication } from "@/lib/workflow";
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest, ctx: Context) {
       return json({ processed: results });
     }
     const uid = await user();
+    if (path === "agent-runs") return json({ runs: await listAgentRuns(uid) });
     if (path === "state") {
       const [
         workspace,
@@ -93,6 +95,7 @@ export async function GET(req: NextRequest, ctx: Context) {
         replies,
         jobs,
         usage,
+        agentRuns,
       ] = await Promise.all([
         db.workspace.upsert({
           where: { id: uid },
@@ -158,6 +161,7 @@ export async function GET(req: NextRequest, ctx: Context) {
           },
           take: 1000,
         }),
+        listAgentRuns(uid),
       ]);
       return json({
         workspace,
@@ -170,6 +174,7 @@ export async function GET(req: NextRequest, ctx: Context) {
         replies,
         jobs,
         usage,
+        agentRuns,
       });
     }
     if (path.startsWith("resumes/")) {
@@ -491,6 +496,7 @@ export async function POST(req: NextRequest, ctx: Context) {
           provider: z.enum(["groq", "gemini"]),
           resumeId: z.string().optional(),
           permitted: z.literal(true),
+          mode: z.enum(["assisted", "agentic"]).default("assisted"),
         })
         .parse(input);
       const workspace = await db.workspace.findUnique({ where: { id: uid } });
@@ -510,51 +516,56 @@ export async function POST(req: NextRequest, ctx: Context) {
         where: { userId_email: { userId: uid, email: d.email } },
       });
       if (existing?.suppressed) throw new Error("This recipient is suppressed");
-      const { resume, draft, body, intelligence } = await prepareApplication({
-        userId: uid,
-        provider: d.provider,
-        skills: profile.skills,
-        role: d.role,
-        description: d.description,
-        signature: profile.signature || profile.name,
-        resumeId: d.resumeId,
-        resumes,
-      });
-      const companyKey =
-        d.company.trim().toLowerCase() || d.email.split("@")[1];
-      const result = await db.$transaction(async (tx) => {
-        await tx.contact.upsert({
-          where: { userId_email: { userId: uid, email: d.email } },
-          create: {
-            userId: uid,
-            email: d.email,
-            company: d.company,
-            source: "User-confirmed Quick Apply",
-          },
-          update: {},
+      const result = await trackPreparation(uid, d.mode, async (checkpoint) => {
+        const { resume, draft, body, intelligence } = await prepareApplication({
+          userId: uid,
+          provider: d.provider,
+          skills: profile.skills,
+          role: d.role,
+          description: d.description,
+          signature: profile.signature || profile.name,
+          resumeId: d.resumeId,
+          resumes,
+          mode: d.mode,
+          onStep: checkpoint,
         });
-        const app = await tx.application.create({
-          data: {
-            userId: uid,
-            recipient: d.email,
-            company: d.company,
-            companyKey,
-            role: d.role,
-            description: d.description,
-            jobUrl: d.jobUrl,
-            resumeId: resume.id,
-            intelligence,
-            subject: draft.subject,
-            body,
-            provider: draft.provider,
-            model: draft.model,
-            messageId: `sol.${randomUUID()}@${new URL(process.env.APP_BASE_URL || "http://localhost:3000").hostname}`,
-          },
+        const companyKey =
+          d.company.trim().toLowerCase() || d.email.split("@")[1];
+        const result = await db.$transaction(async (tx) => {
+          await tx.contact.upsert({
+            where: { userId_email: { userId: uid, email: d.email } },
+            create: {
+              userId: uid,
+              email: d.email,
+              company: d.company,
+              source: "User-confirmed Quick Apply",
+            },
+            update: {},
+          });
+          const app = await tx.application.create({
+            data: {
+              userId: uid,
+              recipient: d.email,
+              company: d.company,
+              companyKey,
+              role: d.role,
+              description: d.description,
+              jobUrl: d.jobUrl,
+              resumeId: resume.id,
+              intelligence,
+              subject: draft.subject,
+              body,
+              provider: draft.provider,
+              model: draft.model,
+              messageId: `sol.${randomUUID()}@${new URL(process.env.APP_BASE_URL || "http://localhost:3000").hostname}`,
+            },
+          });
+          await tx.audit.create({
+            data: { userId: uid, action: "DRAFT_PREPARED", resource: app.id },
+          });
+          return app;
         });
-        await tx.audit.create({
-          data: { userId: uid, action: "DRAFT_PREPARED", resource: app.id },
-        });
-        return app;
+        return result;
       });
       return json({
         message: "Draft prepared. Review every claim before approval.",
@@ -586,6 +597,14 @@ export async function POST(req: NextRequest, ctx: Context) {
         },
       });
       if (!r.count) throw new Error("Only unscheduled drafts can be edited");
+      await db.agentRun.updateMany({
+        where: { userId: uid, applicationId: d.id },
+        data: {
+          status: "WAITING_REVIEW",
+          summary:
+            "The draft was edited. Review the new text against the original evidence before approving again.",
+        },
+      });
       return json({
         message: "Saved. Content changes require fresh approval.",
       });
@@ -613,6 +632,14 @@ export async function POST(req: NextRequest, ctx: Context) {
             status: "APPROVED",
             claimConfirmed: true,
             approvedAt: new Date(),
+          },
+        });
+        await tx.agentRun.updateMany({
+          where: { userId: uid, applicationId: d.id },
+          data: {
+            status: "APPROVED",
+            summary:
+              "Content approved by the user. Sending remains a separate action in the application tracker.",
           },
         });
         await tx.audit.create({

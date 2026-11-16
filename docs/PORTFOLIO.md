@@ -1,6 +1,6 @@
 # Presenting SOL Ai as a project
 
-Suggested title: **SOL Ai — Privacy-first job application assistant with lexical RAG and bounded AI planning**.
+Suggested title: **SOL Ai  -  Privacy-first job application assistant with lexical RAG and bounded AI planning**.
 
 Suggested description:
 
@@ -35,3 +35,5 @@ Do not claim vector RAG, a trained/fine-tuned model, fully autonomous applicatio
 - Atomic quota reservation, per-user send locks and uncertain distributed side effects.
 - Vercel Hobby scheduling limits and why database persistence does not itself provide a frequent worker.
 - What you would implement next: semantic retrieval evaluation, independently confirmed claim extraction, durable agent checkpoints, safe follow-ups, live/browser validation.
+
+Version 0.3 demonstration: open Agent Studio during Agent-mode preparation to show the two decisions and retrieval observations. Show a stopped run as well as a successful one. Explain the three-call budget, persisted checkpoints and absence of automatic replay or sending permissions.

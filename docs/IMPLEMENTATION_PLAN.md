@@ -18,3 +18,7 @@ Free-tier status must be treated as account-specific; no billing guarantee. No a
 ## Version 0.2: evidence and bounded planning
 
 Add local lexical RAG over approved sources, provider-safe evidence projection, a constrained multi-resume LLM planner, one bounded citation-repair step and an inspectable review trace. Preserve explicit approval and deterministic Gmail sending. Validate retrieval quality, privacy, unsupported planner tools and migrations. Add an honest portfolio guide.
+
+## Version 0.3
+
+Add a two-stage tool loop, persistent checkpoints/failure states, local skill-gap and writing checks, Agent Studio, readable UI hierarchy and an em-dash-free writing policy. Retain Gemini/Groq privacy controls and separate human-approved Gmail sending. Verify migrations, real database tests, build and CI; document unavailable browser/live checks.

@@ -15,3 +15,5 @@ Resume content is immutable after upload; only approval may change. Historical r
 Back up Neon according to your plan. Free-tier backup/restore retention must be checked in your Neon project; no permanent backup guarantee. Maintain encryption-key backups separately.
 
 Version 0.2 adds Application.intelligence JSON via a forward-only migration, preserving existing applications with an empty default. Stored evidence locators/hashes permit reconstructing approved-source passages in the review UI without copying private passages into traces. Apply migrations before deploying updated code.
+
+Version 0.3 adds tenant-owned AgentRun records via 20261116020000_agent_runs. Workspace deletion cascades to run history. Application references are informational, not ownership-authorizing foreign keys; all reads and mutation links remain user-scoped.

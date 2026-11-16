@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-SOL Ai 0.2 uses **local lexical retrieval-augmented generation** and a **bounded LLM planning workflow**. It is not an unrestricted autonomous job-application agent, and it does not use embedding/vector search.
+SOL Ai uses **local lexical retrieval-augmented generation** and a **bounded LLM planning workflow**. It is not an unrestricted autonomous job-application agent, and it does not use embedding/vector search.
 
 ```mermaid
 flowchart TD
@@ -51,8 +51,12 @@ All calls reserve daily budgets independently. A simple single-resume/manual-sel
 
 They prove that the referenced source ID belongs to retrieved approved evidence. They **do not prove semantic entailment of every sentence**, detect all contradictions, or establish an active vacancy. The user still reviews claims, eligibility, recipient and attachment. Editing resets content approval, and the displayed evidence trail is labelled as belonging to original generation.
 
-The Application `intelligence` JSON persists retrieval metadata, citations, selected resume hash and workflow steps. It does not store raw passage copies. The review UI reconstructs the source excerpt from the immutable resume text; if that document is deleted, the trace shows that the original source is unavailable. Completed traces survive restarts; failed pre-draft runs currently return visible errors rather than creating a durable agent-run record.
+The Application `intelligence` JSON persists retrieval metadata, citations, selected resume hash and workflow steps. It does not store raw passage copies. The review UI reconstructs the source excerpt from the immutable resume text; if that document is deleted, the trace shows that the original source is unavailable. Completed traces survive restarts; version 0.3 also persists pre-draft checkpoints and sanitized failure states in AgentRun.
 
 ## Limitations
 
 No embedding/semantic retrieval, detailed claim extraction, general web research agent, durable multi-step agent checkpointing, cross-provider failover, automatic follow-ups or full autonomous routine. End-to-end browser and live-provider verification still require the owner's configured accounts. See `IMPLEMENTATION_STATUS.md` for the complete acceptance matrix.
+
+## Version 0.3 agent loop
+
+Agent mode adds a second LLM decision after retrieval observations. It can stop before or after retrieval. Stage-specific tool gates reject drafting before evidence exists. The writing call follows only an authorized draft decision. At most three calls occur, with no citation-repair call in this mode. Assisted mode retains its previous behavior. See VERSION_0_3.md for persisted runs and interface details.

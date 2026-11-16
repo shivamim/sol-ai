@@ -4,7 +4,7 @@ import "@fontsource-variable/dm-sans";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "SOL Ai — Your next chapter, in motion",
+  title: "SOL Ai  -  Your next chapter, in motion",
   description: "A private, thoughtful workspace for your next career move.",
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
