@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TransportStatus {
+  REVIEW_REQUIRED
+  APPROVED
+  QUEUED
+  SENDING
+  SENT
+  SEND_UNCERTAIN
+}
+
+model Workspace {
+  id String @id
+
+  resumeRecords      Resume[]
+  contactRecords     Contact[]
+  providerRecords    Provider[]
+  aIUsageRecords     AIUsage[]
+  applicationRecords Application[]
+  outboxRecords      Outbox[]
+  auditRecords       Audit[]
+  replyRecords       Reply[]
+  opportunityRecords Opportunity[]
+  gmailAccount       GmailAccount?
+  profile            Json          @default("{}")
+  paused             Boolean       @default(true)
+  dailyLimit         Int           @default(8)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Resume {
+  id        String    @id @default(cuid())
+  workspace Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  name      String
+  role      String
+  mime      String
+  content   Bytes
+  text      String
+  approved  Boolean   @default(false)
+  hash      String
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, hash])
+  @@index([userId, createdAt])
+}
+
+model Contact {
+  id         String    @id @default(cuid())
+  workspace  Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  email      String
+  name       String    @default("")
+  company    String    @default("")
+  title      String    @default("")
+  source     String
+  suppressed Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, email])
+  @@index([userId, company])
+}
+
+model Provider {
+  id            String    @id @default(cuid())
+  workspace     Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  kind          String
+  secret        String
+  model         String
+  enabled       Boolean   @default(true)
+  freeConfirmed Boolean   @default(false)
+  dailyRequests Int       @default(30)
+  dailyTokens   Int       @default(30000)
+  maxOutput     Int       @default(512)
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, kind])
+}
+
+model AIUsage {
+  id        String    @id @default(cuid())
+  workspace Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  provider  String
+  model     String
+  tokens    Int
+  reserved  Int
+  status    String
+  createdAt DateTime  @default(now())
+
+  @@index([userId, provider, createdAt])
+}
+
+model GmailAccount {
+  workspace    Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String    @id
+  email        String
+  refreshToken String
+  readEnabled  Boolean   @default(false)
+  syncedAt     DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model Application {
+  id             String          @id @default(cuid())
+  workspace      Workspace       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  recipient      String
+  company        String
+  companyKey     String
+  role           String
+  description    String          @default("")
+  jobUrl         String          @default("")
+  resumeId       String
+  subject        String
+  body           String
+  provider       String
+  model          String
+  status         TransportStatus @default(REVIEW_REQUIRED)
+  outcome        String          @default("PENDING")
+  approvedAt     DateTime?
+  claimConfirmed Boolean         @default(false)
+  gmailId        String?
+  threadId       String?
+  messageId      String          @unique
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  outbox         Outbox?
+  replies        Reply[]
+
+  @@unique([id, userId])
+  @@index([userId, status])
+  @@index([userId, companyKey, createdAt])
+  @@index([userId, recipient])
+}
+
+model Outbox {
+  id            String          @id @default(cuid())
+  workspace     Workspace       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  applicationId String          @unique
+  status        TransportStatus @default(QUEUED)
+  attempts      Int             @default(0)
+  leaseAt       DateTime?
+  createdAt     DateTime        @default(now())
+  application   Application     @relation(fields: [applicationId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@unique([applicationId, userId])
+  @@index([status, createdAt])
+}
+
+model Audit {
+  id        String    @id @default(cuid())
+  workspace Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  action    String
+  resource  String
+  detail    String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Reply {
+  id            String      @id
+  workspace     Workspace   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  applicationId String
+  category      String
+  snippet       String
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Opportunity {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  externalId  String
+  source      String
+  company     String
+  title       String
+  location    String
+  url         String
+  description String
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, source, externalId])
+  @@index([userId, createdAt])
+}
